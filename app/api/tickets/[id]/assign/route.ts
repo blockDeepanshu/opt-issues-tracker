@@ -7,6 +7,7 @@ import { User } from "@/lib/models/user";
 import { publishRealtime } from "@/lib/realtime/broker";
 import { serializeTicket } from "@/lib/serializers";
 import { ticketAssignSchema } from "@/lib/validations/ticket";
+import { canManageTicket } from "@/lib/ticket-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +22,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { assigneeEmail } = ticketAssignSchema.parse(await request.json());
     await connectMongo();
+
+    const existing = await Ticket.findById(id).lean();
+    if (!existing) return fail("Ticket not found.", 404);
+    if (!canManageTicket(existing, session.user)) {
+      return fail("Only the creator or current assignee can change assignment.", 403);
+    }
+
     const user = await User.findOne({ email: assigneeEmail }).select("_id email").lean();
     if (!user) return fail("No authenticated user exists with that email.", 404);
 

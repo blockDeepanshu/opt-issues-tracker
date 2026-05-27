@@ -9,6 +9,7 @@ type TicketState = {
   setTickets: (tickets: TicketDTO[]) => void;
   upsertTicket: (ticket: TicketDTO) => void;
   updateStatus: (ticketId: string, status: TicketStatus) => void;
+  removeTicket: (ticketId: string) => void;
 };
 
 export const useTicketStore = create<TicketState>((set) => ({
@@ -23,5 +24,9 @@ export const useTicketStore = create<TicketState>((set) => ({
   updateStatus: (ticketId, status) =>
     set((state) => ({
       tickets: state.tickets.map((ticket) => (ticket.id === ticketId ? { ...ticket, status } : ticket)),
+    })),
+  removeTicket: (ticketId) =>
+    set((state) => ({
+      tickets: state.tickets.filter((ticket) => ticket.id !== ticketId),
     })),
 }));

@@ -1,3 +1,4 @@
+import { isValidObjectId, Types } from "mongoose";
 import { auth } from "@/auth";
 import { connectMongo } from "@/lib/db";
 import { Counter } from "@/lib/models/counter";
@@ -34,8 +35,9 @@ export async function GET(request: Request) {
     if (query.assigneeEmail) filter.assigneeEmail = query.assigneeEmail.toLowerCase();
     if (query.mine === "true") filter.assigneeEmail = session.user.email?.toLowerCase();
     if (query.search) {
-      const regex = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [
+      const trimmed = query.search.trim();
+      const regex = new RegExp(trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const orConditions: Record<string, unknown>[] = [
         { ticketNumber: regex },
         { mobileNumber: regex },
         { issueDescription: regex },
@@ -43,6 +45,20 @@ export async function GET(request: Request) {
         { assigneeEmail: regex },
         { raisedBy: regex },
       ];
+      if (isValidObjectId(trimmed)) {
+        orConditions.push({ _id: new Types.ObjectId(trimmed) });
+      } else if (/^[a-f0-9]{6,24}$/i.test(trimmed)) {
+        orConditions.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$_id" },
+              regex: trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+              options: "i",
+            },
+          },
+        });
+      }
+      filter.$or = orConditions;
     }
 
     const tickets = await Ticket.find(filter)

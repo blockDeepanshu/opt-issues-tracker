@@ -7,7 +7,7 @@ import { KanbanBoard } from "@/components/tickets/kanban-board";
 export const dynamic = "force-dynamic";
 
 export default async function TicketsPage() {
-  await auth();
+  const session = await auth();
   await connectMongo();
   const tickets = await Ticket.find({})
     .sort({ createdAt: -1 })
@@ -22,7 +22,10 @@ export default async function TicketsPage() {
           Track policy issues from intake to resolution.
         </p>
       </div>
-      <KanbanBoard initialTickets={tickets.map(serializeTicket)} />
+      <KanbanBoard
+        initialTickets={tickets.map(serializeTicket)}
+        currentUser={session?.user?.id ? { id: session.user.id, email: session.user.email } : undefined}
+      />
     </div>
   );
 }

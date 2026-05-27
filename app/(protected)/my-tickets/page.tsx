@@ -24,7 +24,11 @@ export default async function MyTicketsPage() {
           <span className="font-semibold">{unresolved}</span> unresolved
         </div>
       </div>
-      <KanbanBoard initialTickets={tickets.map(serializeTicket)} baseQuery={{ mine: "true" }} />
+      <KanbanBoard
+        initialTickets={tickets.map(serializeTicket)}
+        baseQuery={{ mine: "true" }}
+        currentUser={session?.user?.id ? { id: session.user.id, email: session.user.email } : undefined}
+      />
     </div>
   );
 }

@@ -11,7 +11,13 @@ import { cn } from "@/lib/utils";
 import { TicketCard } from "@/components/tickets/ticket-card";
 import { useTicketStore } from "@/components/tickets/ticket-store";
 
-function DraggableTicket({ ticket }: { ticket: TicketDTO }) {
+function DraggableTicket({
+  ticket,
+  currentUser,
+}: {
+  ticket: TicketDTO;
+  currentUser?: { id: string; email?: string | null };
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: ticket.id, data: { ticket } });
   return (
     <div
@@ -21,12 +27,20 @@ function DraggableTicket({ ticket }: { ticket: TicketDTO }) {
       {...listeners}
       {...attributes}
     >
-      <TicketCard ticket={ticket} />
+      <TicketCard ticket={ticket} currentUser={currentUser} />
     </div>
   );
 }
 
-function Column({ status, tickets }: { status: TicketStatus; tickets: TicketDTO[] }) {
+function Column({
+  status,
+  tickets,
+  currentUser,
+}: {
+  status: TicketStatus;
+  tickets: TicketDTO[];
+  currentUser?: { id: string; email?: string | null };
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <section ref={setNodeRef} className={cn("flex min-h-[360px] flex-col rounded-lg border border-slate-200 bg-slate-100/70 dark:border-slate-800 dark:bg-slate-900/50", isOver && "ring-2 ring-blue-500")}>
@@ -35,7 +49,7 @@ function Column({ status, tickets }: { status: TicketStatus; tickets: TicketDTO[
         <span className="rounded bg-white px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-950 dark:text-slate-400">{tickets.length}</span>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        {tickets.length ? tickets.map((ticket) => <DraggableTicket key={ticket.id} ticket={ticket} />) : (
+        {tickets.length ? tickets.map((ticket) => <DraggableTicket key={ticket.id} ticket={ticket} currentUser={currentUser} />) : (
           <div className="grid h-32 place-items-center rounded-md border border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-700">No tickets</div>
         )}
       </div>
@@ -43,10 +57,19 @@ function Column({ status, tickets }: { status: TicketStatus; tickets: TicketDTO[
   );
 }
 
-export function KanbanBoard({ initialTickets, baseQuery }: { initialTickets: TicketDTO[]; baseQuery?: Record<string, string> }) {
+export function KanbanBoard({
+  initialTickets,
+  baseQuery,
+  currentUser,
+}: {
+  initialTickets: TicketDTO[];
+  baseQuery?: Record<string, string>;
+  currentUser?: { id: string; email?: string | null };
+}) {
   const tickets = useTicketStore((state) => state.tickets);
   const setTickets = useTicketStore((state) => state.setTickets);
   const upsertTicket = useTicketStore((state) => state.upsertTicket);
+  const removeTicket = useTicketStore((state) => state.removeTicket);
   const updateStatus = useTicketStore((state) => state.updateStatus);
   const [activeTicket, setActiveTicket] = useState<TicketDTO | null>(null);
   const [search, setSearch] = useState("");
@@ -100,9 +123,13 @@ export function KanbanBoard({ initialTickets, baseQuery }: { initialTickets: Tic
     const source = new EventSource("/api/realtime");
     source.addEventListener("ticket:created", (event) => upsertTicket(JSON.parse((event as MessageEvent).data)));
     source.addEventListener("ticket:updated", (event) => upsertTicket(JSON.parse((event as MessageEvent).data)));
+    source.addEventListener("ticket:deleted", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as { id: string };
+      removeTicket(payload.id);
+    });
     source.onerror = () => source.close();
     return () => source.close();
-  }, [upsertTicket]);
+  }, [removeTicket, upsertTicket]);
 
   const filtered = useMemo(() => tickets, [tickets]);
 
@@ -147,7 +174,7 @@ export function KanbanBoard({ initialTickets, baseQuery }: { initialTickets: Tic
       <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1fr_180px_220px_220px]">
         <label className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tickets" className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by ticket ID, description, or assignee" className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-950" />
         </label>
         <select value={priority} onChange={(event) => setPriority(event.target.value as TicketPriority | "")} className="h-10 cursor-pointer rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
           <option value="">All priorities</option>
@@ -162,10 +189,10 @@ export function KanbanBoard({ initialTickets, baseQuery }: { initialTickets: Tic
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="grid gap-4 lg:grid-cols-3">
           {TICKET_STATUSES.map((status) => (
-            <Column key={status} status={status} tickets={filtered.filter((ticket) => ticket.status === status)} />
+            <Column key={status} status={status} tickets={filtered.filter((ticket) => ticket.status === status)} currentUser={currentUser} />
           ))}
         </div>
-        <DragOverlay>{activeTicket ? <TicketCard ticket={activeTicket} /> : null}</DragOverlay>
+        <DragOverlay>{activeTicket ? <TicketCard ticket={activeTicket} currentUser={currentUser} /> : null}</DragOverlay>
       </DndContext>
     </div>
   );

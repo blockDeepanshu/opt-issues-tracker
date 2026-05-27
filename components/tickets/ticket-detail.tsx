@@ -1,7 +1,8 @@
 "use client";
 
 import { format } from "date-fns";
-import { Copy } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { MessageDTO, TicketDTO } from "@/lib/serializers";
@@ -11,9 +12,19 @@ import { ChatPanel } from "@/components/tickets/chat-panel";
 import { StatusSelect } from "@/components/tickets/status-select";
 import { Spinner } from "@/components/ui/loader";
 
-export function TicketDetail({ ticket, messages }: { ticket: TicketDTO; messages: MessageDTO[] }) {
+export function TicketDetail({
+  ticket,
+  messages,
+  canManage,
+}: {
+  ticket: TicketDTO;
+  messages: MessageDTO[];
+  canManage: boolean;
+}) {
+  const router = useRouter();
   const [assigneeEmail, setAssigneeEmail] = useState(ticket.assigneeEmail ?? "");
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   async function copyId() {
     await navigator.clipboard.writeText(ticket.ticketNumber);
@@ -38,12 +49,35 @@ export function TicketDetail({ ticket, messages }: { ticket: TicketDTO; messages
         toast.error(json.error?.message ?? "Assignment failed.");
       } else {
         setAssigneeEmail(json.data.assigneeEmail ?? "");
-        toast.success("Ticket assigned.");
+        toast.success("Assignee updated.");
       }
     } catch {
       toast.error("Assignment failed.");
     } finally {
       setIsAssigning(false);
+    }
+  }
+
+  async function deleteTicket() {
+    const confirmed = window.confirm(`Delete ticket ${ticket.ticketNumber}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/tickets/${ticket.id}`, { method: "DELETE" });
+      const json = await response.json();
+      if (!response.ok) {
+        toast.error(json.error?.message ?? "Could not delete ticket.");
+        return;
+      }
+
+      toast.success("Ticket deleted.");
+      router.push("/tickets");
+      router.refresh();
+    } catch {
+      toast.error("Could not delete ticket.");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -63,6 +97,11 @@ export function TicketDetail({ ticket, messages }: { ticket: TicketDTO; messages
           <div className="flex items-center gap-2">
             <StatusSelect ticketId={ticket.id} value={ticket.status} />
             <Button variant="secondary" size="icon" onClick={copyId} aria-label="Copy ticket ID"><Copy className="h-4 w-4" /></Button>
+            {canManage ? (
+              <Button variant="danger" size="icon" onClick={deleteTicket} disabled={isDeleting} aria-label="Delete ticket">
+                {isDeleting ? <Spinner /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            ) : null}
           </div>
         </div>
         <div>
@@ -76,16 +115,24 @@ export function TicketDetail({ ticket, messages }: { ticket: TicketDTO; messages
             <img loading="lazy" src={ticket.imageUrl} alt="Ticket attachment" className="max-h-[460px] rounded-lg border border-slate-200 object-contain dark:border-slate-800" />
           </div>
         )}
-        <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
-          <h2 className="mb-3 text-sm font-semibold">Assignment</h2>
-          <div className="flex gap-2">
-            <input value={assigneeEmail} onChange={(event) => setAssigneeEmail(event.target.value)} className="input" placeholder="teammate@company.com" />
-            <Button type="button" disabled={isAssigning} onClick={assignTicket}>
-              {isAssigning && <Spinner />}
-              Assign
-            </Button>
+        {canManage ? (
+          <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
+            <h2 className="mb-1 text-sm font-semibold">Assignment</h2>
+            <p className="mb-3 text-xs text-slate-500">Only the creator or current assignee can change this.</p>
+            <div className="flex gap-2">
+              <input value={assigneeEmail} onChange={(event) => setAssigneeEmail(event.target.value)} className="input" placeholder="teammate@company.com" />
+              <Button type="button" disabled={isAssigning} onClick={assignTicket}>
+                {isAssigning && <Spinner />}
+                {ticket.assigneeEmail ? "Reassign" : "Assign"}
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
+            <h2 className="mb-2 text-sm font-semibold">Assignment</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300">{assigneeEmail || "Unassigned"}</p>
+          </div>
+        )}
         <dl className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm dark:bg-slate-950 sm:grid-cols-2">
           <Info label="Raised by" value={ticket.raisedBy} />
           <Info label="Insurance partner" value={ticket.issueType === "Policy Issue" ? ticket.insurancePartner : "Not applicable"} />

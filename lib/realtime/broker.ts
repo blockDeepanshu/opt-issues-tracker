@@ -1,6 +1,7 @@
 type RealtimeEvent =
   | { type: "ticket:created"; payload: unknown }
   | { type: "ticket:updated"; payload: unknown }
+  | { type: "ticket:deleted"; payload: unknown }
   | { type: "message:created"; payload: unknown };
 
 const globalForRealtime = globalThis as typeof globalThis & {
