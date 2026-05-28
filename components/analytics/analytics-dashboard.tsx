@@ -98,13 +98,14 @@ function ChartTooltip({
 }: {
   active?: boolean;
   payload?: Array<{ name?: string; value?: number; color?: string; payload?: Record<string, unknown> }>;
-  label?: string;
+  label?: string | number;
 }) {
   if (!active || !payload?.length) return null;
+  const labelText = label == null ? undefined : String(label);
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
-      {label ? <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">{label}</p> : null}
+      {labelText ? <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">{labelText}</p> : null}
       <div className="space-y-1">
         {payload.map((entry) => (
           <div key={`${entry.name}-${entry.value}`} className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
